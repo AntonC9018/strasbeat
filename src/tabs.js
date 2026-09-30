@@ -25,12 +25,13 @@ export function readOpenSet(store) {
  * Also mirrors activeTab into lastOpen (spec: kept in sync, lastOpen is the
  * pre-tabs spelling of "the focused pattern").
  */
-export function writeOpenSet(store, { openTabs, activeTab }) {
+export function writeOpenSet(store, { openTabs, activeTab, pinnedTabs }) {
   const idx = store.getIndex();
   idx.uiState = {
     ...(idx.uiState ?? {}),
     openTabs: [...openTabs],
     activeTab: activeTab ?? null,
+    ...(pinnedTabs ? { pinnedTabs: [...pinnedTabs] } : {}),
   };
   idx.lastOpen = activeTab ?? idx.lastOpen ?? null;
   store.setIndex(idx);
@@ -104,6 +105,7 @@ export function createTabController(deps) {
   let activeItem = null;
   let playingItem = null;
   let orphanedPlaying = null;
+  let pinnedItems = new Set();
   /** @type {Map<string, any>} name → cached EditorState */
   const stateCache = new Map();
 
@@ -111,11 +113,27 @@ export function createTabController(deps) {
     const { openTabs, activeTab } = migrateOpenSet(store);
     openItems = [...openTabs];
     activeItem = activeTab;
+    const savedPins = store.getIndex().uiState?.pinnedTabs;
+    pinnedItems = new Set(Array.isArray(savedPins) ? savedPins.filter((name) => openItems.includes(name)) : []);
+    sortPinned();
     persist();
   }
 
   function persist() {
-    writeOpenSet(store, { openTabs: openItems, activeTab: activeItem });
+    writeOpenSet(store, { openTabs: openItems, activeTab: activeItem, pinnedTabs: pinnedItems });
+  }
+
+  function sortPinned() {
+    openItems.sort((a, b) => Number(pinnedItems.has(b)) - Number(pinnedItems.has(a)));
+  }
+
+  function togglePin(name = activeItem) {
+    if (!openItems.includes(name)) return;
+    if (pinnedItems.has(name)) pinnedItems.delete(name);
+    else pinnedItems.add(name);
+    sortPinned();
+    persist();
+    onAfterSwitch(activeItem);
   }
 
   function codeFor(name) {
@@ -157,7 +175,9 @@ export function createTabController(deps) {
     focus(name);
   }
 
-  function close(name) {
+  function close(name, { force = false } = {}) {
+    if (pinnedItems.has(name) && !force) return;
+    pinnedItems.delete(name);
     const idx = openItems.indexOf(name);
     if (idx < 0) return;
     const wasActive = activeItem === name;
@@ -189,12 +209,14 @@ export function createTabController(deps) {
     if (from < 0) return;
     openItems.splice(from, 1);
     openItems.splice(toIndex, 0, name);
+    sortPinned();
     persist();
     onAfterSwitch(activeItem);
   }
 
   // Rename: re-key in place across openItems, cache, focus, playing, orphan.
   function reKey(oldName, newName) {
+    if (pinnedItems.delete(oldName)) pinnedItems.add(newName);
     const i = openItems.indexOf(oldName);
     if (i >= 0) openItems[i] = newName;
     if (stateCache.has(oldName)) {
@@ -262,6 +284,7 @@ export function createTabController(deps) {
     openOrFocus,
     close,
     reorder,
+    togglePin,
     reKey,
     evictState,
     refresh,
@@ -269,6 +292,7 @@ export function createTabController(deps) {
     clearPlaying,
     persist,
     getOpenItems: () => [...openItems],
+    getPinnedItems: () => new Set(pinnedItems),
     getActiveItem: () => activeItem,
     getPlayingItem: () => playingItem,
     getOrphanedPlaying: () => orphanedPlaying,

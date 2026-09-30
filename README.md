@@ -265,6 +265,12 @@ Anton’s `lua/core/mappings.lua`:
 | Keys | Action |
 | --- | --- |
 | Ctrl+J / Ctrl+K | Next / previous completion; also navigate command and keymap pickers and focused single-select dropdowns |
+| Ctrl+Space | Open completion explicitly, including in Vim mode |
+| `gre` / `griw` / `grr` | Replace through word end / inside word / whole line using Vim’s yank register, preserving the register |
+| `ge` / `gE` | Jump to the active pattern’s evaluation error |
+| Alt+1–9 | Select the corresponding open pattern tab in strip order |
+| Alt+A | Pin/unpin the current tab; pinned tabs stay left and must be unpinned before closing |
+| Shift+W | Save the current pattern using the existing Save action (writes to disk in the dev server) |
 | Space Y | Copy the current line to the system clipboard, or the selection in visual mode |
 | Space C | Copy the whole current line as characters; in visual mode, copy selected lines with common indentation removed |
 | Space P | Paste system clipboard after the cursor, or below the line for linewise text |
@@ -278,9 +284,12 @@ Clipboard reads normalize CRLF/CR newlines. Clipboard errors appear in the
 editor. Use `http://localhost:5173` or HTTPS for browser clipboard access.
 
 With no completion list open, Ctrl+J retains its existing sound-browser
-shortcut on Linux/Windows. The standard Vim word motions and `cw`/`ce`
-remain available. Further word/diagnostic remappings need clarification;
-this fork does not import the whole Neovim configuration.
+shortcut on Linux/Windows. Standard Vim `cw`/`ce` remain available. `gr`
+also accepts other Vim motions and visual selections. `ge`/`gE` currently
+target the same error because strasbeat exposes one evaluation error at
+a time, rather than a workspace diagnostic list. Pinning persists across
+reloads; click the pin icon or use Alt+A to unpin. These Rider shortcuts
+were checked against the Windows `Rider2026.2/keymaps/VSCode _Migrated_.xml`.
 
 Run `pnpm test` and `pnpm build` to validate changes. The new regression
 tests cover clipboard selection semantics and dropdown navigation.

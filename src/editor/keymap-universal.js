@@ -16,6 +16,7 @@ import {
   moveCompletionSelection,
   currentCompletions,
   selectedCompletionIndex,
+  startCompletion,
 } from "@codemirror/autocomplete";
 import { syntaxTree } from "@codemirror/language";
 import { soundMap } from "@strudel/webaudio";
@@ -24,6 +25,7 @@ import { findBankInScope } from "./completions/bank-detect.js";
 
 export function createUniversalKeymap({ onEvaluate, onAuditionSelected, onRevealSound, onFocusBrowser }) {
   return keymap.of([
+    { key: "Ctrl-Space", run: startCompletion },
     // Mod-Enter on macOS evaluates (parity with Strudel's Ctrl-Enter at
     // Prec.highest, which on mac is literally Control+Enter, not
     // Cmd+Enter). Without this, mac users on the Strudel/Vim/Emacs/Helix

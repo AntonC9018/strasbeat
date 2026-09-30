@@ -319,3 +319,34 @@ describe("createTabController: refresh (revert)", () => {
     assert.equal(events.installed.length, before, "no install for a non-active refresh");
   });
 });
+
+describe("createTabController: pinning", () => {
+  test("pin moves a tab left, persists, protects close, and unpin allows closing", () => {
+    const { ctl, _idx } = makeHarness({ openTabs: ["a", "b", "c"], activeTab: "b" });
+    ctl.hydrate();
+    ctl.togglePin();
+    assert.deepEqual(ctl.getOpenItems(), ["b", "a", "c"]);
+    assert.deepEqual(_idx().uiState.pinnedTabs, ["b"]);
+    ctl.close("b");
+    assert.equal(ctl.getActiveItem(), "b");
+    ctl.togglePin();
+    ctl.close("b");
+    assert.equal(ctl.getOpenItems().includes("b"), false);
+  });
+
+  test("pins survive hydration and rename; forced deletion clears them", () => {
+    const { ctl, store } = makeHarness({ openTabs: ["a", "b"], activeTab: "a" });
+    const idx = store.getIndex();
+    idx.uiState.pinnedTabs = ["b", "missing"];
+    store.setIndex(idx);
+    ctl.hydrate();
+    assert.deepEqual(ctl.getOpenItems(), ["b", "a"]);
+    assert.deepEqual([...ctl.getPinnedItems()], ["b"]);
+    ctl.reKey("b", "renamed");
+    assert.equal(ctl.getPinnedItems().has("renamed"), true);
+    ctl.reorder("a", 0);
+    assert.deepEqual(ctl.getOpenItems(), ["renamed", "a"]);
+    ctl.close("renamed", { force: true });
+    assert.deepEqual([...ctl.getPinnedItems()], []);
+  });
+});

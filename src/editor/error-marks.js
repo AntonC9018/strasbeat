@@ -185,6 +185,10 @@ export function clearError(view) {
   view.dispatch({ effects: clearErrorEffect.of(null) });
 }
 
+export function currentError(state) {
+  return state.field(errorStateField, false) ?? null;
+}
+
 function buildDecorations(value) {
   if (!value) return Decoration.none;
   return Decoration.set(

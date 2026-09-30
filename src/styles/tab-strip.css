@@ -88,6 +88,10 @@
   color: var(--text);
 }
 
+.tab-strip__tab.is-pinned .tab-strip__close {
+  opacity: 1;
+}
+
 .tab-strip__tab:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;

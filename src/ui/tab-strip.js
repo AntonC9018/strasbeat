@@ -30,11 +30,13 @@ function prettyName(raw) {
  * @param {() => string[]} opts.getOpenItems
  * @param {() => string|null} opts.getActiveItem
  * @param {() => string|null} opts.getPlayingItem
+ * @param {() => Set<string>} opts.getPinnedItems
  * @param {() => Set<string>} opts.getDirtySet  shipped names with working copies
  * @param {(name:string)=>boolean} opts.isUser  user pattern (no dirty dot)
  * @param {(name:string)=>void} opts.onFocus
  * @param {(name:string)=>void} opts.onClose
  * @param {(name:string, toIndex:number)=>void} opts.onReorder
+ * @param {(name:string)=>void} opts.onTogglePin
  * @returns {{ render: () => void }}
  */
 export function mountTabStrip(opts) {
@@ -43,11 +45,13 @@ export function mountTabStrip(opts) {
     getOpenItems,
     getActiveItem,
     getPlayingItem,
+    getPinnedItems,
     getDirtySet,
     isUser,
     onFocus,
     onClose,
     onReorder,
+    onTogglePin,
   } = opts;
   if (!container) throw new Error("tab-strip.mount: container is required");
 
@@ -82,6 +86,7 @@ export function mountTabStrip(opts) {
     const active = getActiveItem();
     const playing = getPlayingItem();
     const dirty = getDirtySet();
+    const pinned = getPinnedItems();
 
     if (open.length === 0) {
       const empty = el(
@@ -98,6 +103,8 @@ export function mountTabStrip(opts) {
       tab.setAttribute("role", "tab");
       tab.setAttribute("tabindex", "0");
       tab.dataset.name = name;
+      tab.classList.toggle("is-pinned", pinned.has(name));
+      tab.title = `${prettyName(name)}${index < 9 ? ` · Alt+${index + 1}` : ""}${pinned.has(name) ? " · Pinned" : ""}`;
       tab.draggable = true;
       // Entrance animation only for tabs that weren't open last render.
       if (!prevNames.has(name)) tab.classList.add("is-entering");
@@ -129,11 +136,12 @@ export function mountTabStrip(opts) {
 
       const close = el("button", "tab-strip__close");
       close.type = "button";
-      close.setAttribute("aria-label", `Close ${prettyName(name)}`);
-      close.appendChild(makeIcon("x", { size: 12 }));
+      close.setAttribute("aria-label", `${pinned.has(name) ? "Unpin" : "Close"} ${prettyName(name)}`);
+      close.appendChild(makeIcon(pinned.has(name) ? "pin" : "x", { size: 12 }));
       close.addEventListener("click", (e) => {
         e.stopPropagation();
-        onClose(name);
+        if (pinned.has(name)) onTogglePin(name);
+        else onClose(name);
       });
       tab.appendChild(close);
 

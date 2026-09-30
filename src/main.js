@@ -69,6 +69,7 @@ import { mountCommandPalette } from "./ui/command-palette.js";
 import { mountTabStrip } from "./ui/tab-strip.js";
 import { buildPaletteCommands } from "./command-palette-actions.js";
 import { installSelectNavigation } from "./ui/list-navigation.js";
+import { installTabShortcuts } from "./ui/tab-shortcuts.js";
 
 installSelectNavigation();
 
@@ -528,7 +529,7 @@ async function deleteFolderHandler(folderName) {
     );
     store.setIndex(idx);
     for (const name of inFolder) {
-      if (tabs.getOpenItems().includes(name)) tabs.close(name);
+      if (tabs.getOpenItems().includes(name)) tabs.close(name, { force: true });
     }
   }
   removeFolderEntry(folderName);
@@ -645,7 +646,7 @@ async function deleteMany(names) {
     return;
   }
   for (const n of userNames) {
-    if (tabs.getOpenItems().includes(n)) tabs.close(n);
+    if (tabs.getOpenItems().includes(n)) tabs.close(n, { force: true });
   }
   refreshRail();
   transport.setStatus(
@@ -785,7 +786,7 @@ const leftRail = mountLeftRail({
     // Reconcile the open set: closing focuses a neighbor (or the empty state)
     // and persists activeTab/lastOpen. If it was the playing tab, audio
     // continues (orphaned) per spec — Stop clears it.
-    if (tabs.getOpenItems().includes(name)) tabs.close(name);
+    if (tabs.getOpenItems().includes(name)) tabs.close(name, { force: true });
     refreshRail();
     transport.setStatus(`deleted "${name}"`);
   },
@@ -1056,12 +1057,15 @@ tabStrip = mountTabStrip({
   getOpenItems: () => tabs.getOpenItems(),
   getActiveItem: () => tabs.getActiveItem(),
   getPlayingItem: () => tabs.getPlayingItem(),
+  getPinnedItems: () => tabs.getPinnedItems(),
   getDirtySet: () => computeDirtySet(patternNames, patterns, store),
   isUser: (name) => !(name in patterns),
   onFocus: (name) => tabs.openOrFocus(name),
   onClose: (name) => tabs.close(name),
   onReorder: (name, toIndex) => tabs.reorder(name, toIndex),
+  onTogglePin: (name) => tabs.togglePin(name),
 });
+installTabShortcuts({ tabs, focusEditor: () => editor.editor.focus() });
 refreshNowPlaying(); // initial state: nothing playing → chip hidden
 updateEmptyState(); // initial state: overlay shows only if the open set is empty
 
@@ -1263,6 +1267,7 @@ document.addEventListener(
 // blocks). Harmless when the active profile is Strudel/VSCode (no event
 // ever fires); load-bearing in modal profiles.
 document.addEventListener("repl-evaluate", () => editor.evaluate());
+document.addEventListener("strasbeat-save", () => saveBtn.click());
 document.addEventListener("repl-stop", () => editor.stop());
 document.addEventListener("repl-toggle-comment", () => {
   editor.editor.focus();

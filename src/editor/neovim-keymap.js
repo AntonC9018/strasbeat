@@ -1,6 +1,15 @@
 import { Vim } from "@replit/codemirror-vim";
+import { startCompletion } from "@codemirror/autocomplete";
+import { currentError } from "./error-marks.js";
 
 let installed = false;
+
+export function replacementText(text, linewise, selectedText) {
+  // Linewise yanks carry a terminal newline. A character motion shouldn't
+  // insert it; a whole-line replacement retains the original line boundary.
+  const content = text.replace(/\n$/, "");
+  return linewise && selectedText.endsWith("\n") ? content + "\n" : content;
+}
 
 export function normalizeClipboardText(text) {
   return text.replace(/\r\n?/g, "\n");
@@ -60,6 +69,58 @@ export function installNeovimKeymap() {
   // Space → l would consume the leader before Space+y/c/p could complete.
   Vim.unmap("<Space>");
   Vim.map("<Space>", "l", "operatorPending");
+
+  Vim.defineAction("strasbeatSave", () => {
+    document.dispatchEvent(new CustomEvent("strasbeat-save"));
+  });
+  Vim.mapCommand("W", "action", "strasbeatSave", {}, { context: "normal" });
+
+  // CM-Vim consumes Ctrl+Space as a word motion before CM keymaps run in
+  // normal mode, so override it in Vim as well as the universal keymap.
+  Vim.defineAction("strasbeatComplete", (cm) => startCompletion(cm.cm6));
+  for (const context of ["normal", "insert", "visual"]) {
+    Vim.mapCommand("<C-Space>", "action", "strasbeatComplete", {}, { context });
+  }
+
+  Vim.defineMotion("strasbeatDiagnostic", (cm, head) => {
+    const error = currentError(cm.cm6.state);
+    if (!error) return head;
+    const line = cm.cm6.state.doc.line(error.line);
+    return {
+      line: error.line - 1,
+      ch: Math.min(line.length, Math.max(0, (error.column ?? 1) - 1)),
+    };
+  });
+  for (const key of ["ge", "gE"]) {
+    Vim.mapCommand(
+      key,
+      "motion",
+      "strasbeatDiagnostic",
+      { toJumplist: true },
+      { context: "normal" },
+    );
+  }
+
+  Vim.defineOperator("strasbeatSubstitute", (cm, args, ranges) => {
+    const register = Vim.getRegisterController().getRegister(args.registerName);
+    const text = register.toString();
+    if (!text) return ranges[0].anchor;
+    cm.replaceSelections(
+      ranges.map((range) =>
+        replacementText(
+          text,
+          args.linewise,
+          cm.getRange(range.anchor, range.head),
+        ),
+      ),
+    );
+    // No yank/delete operation: the source register survives successive gr's.
+    const end = cm.getCursor("head");
+    return { line: end.line, ch: Math.max(0, end.ch - 1) };
+  });
+  // Leave context unrestricted: Vim repeats the final r in grr while an
+  // operator is pending, which a normal-only mapping would fail to match.
+  Vim.mapCommand("gr", "operator", "strasbeatSubstitute", {}, { isEdit: true });
 
   // Use the same clipboard register through an alias, so Vim's paste action
   // consumes the text we have already read and normalized instead of reading

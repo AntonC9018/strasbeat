@@ -1,7 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EditorState } from "@codemirror/state";
-import { clipboardSelection, normalizeClipboardText } from "./neovim-keymap.js";
+import {
+  clipboardSelection,
+  normalizeClipboardText,
+  replacementText,
+} from "./neovim-keymap.js";
+
+test("gr replacement strips yank newline for words and retains line boundaries for grr", () => {
+  assert.equal(replacementText("new\n", false, "old"), "new");
+  assert.equal(replacementText("new\n", true, "old\n"), "new\n");
+  assert.equal(replacementText("new", true, "old\n"), "new\n");
+  assert.equal(replacementText("new\n", true, "old"), "new");
+});
 
 test("normal Space+y copies complete lines including newline and honors a count", () => {
   const state = EditorState.create({
