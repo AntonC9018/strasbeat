@@ -256,6 +256,35 @@ midi.isCaptureEnabled()              // is live capture on
 - `strudel-source/packages/` — read the source of any function you're
   curious about (the upstream repo is gitignored but kept locally).
 
+## Keyboard customizations in this fork
+
+Choose **Vim** in the transport keymap picker or Settings → Editor → Keymap.
+Space is the leader in normal and visual modes. These bindings follow
+Anton’s `lua/core/mappings.lua`:
+
+| Keys | Action |
+| --- | --- |
+| Ctrl+J / Ctrl+K | Next / previous completion; also navigate command and keymap pickers and focused single-select dropdowns |
+| Space Y | Copy the current line to the system clipboard, or the selection in visual mode |
+| Space C | Copy the whole current line as characters; in visual mode, copy selected lines with common indentation removed |
+| Space P | Paste system clipboard after the cursor, or below the line for linewise text |
+| Space Shift+P | Paste before the cursor, or above the line for linewise text |
+| Ctrl+Enter / `:w` | Evaluate the music immediately |
+| Ctrl+. / `:q` | Stop playback |
+
+The letters after Space are lowercase unless Shift is specified. Visual
+paste reselects the inserted text, matching the config’s `p/P` followed by `gv`.
+Clipboard reads normalize CRLF/CR newlines. Clipboard errors appear in the
+editor. Use `http://localhost:5173` or HTTPS for browser clipboard access.
+
+With no completion list open, Ctrl+J retains its existing sound-browser
+shortcut on Linux/Windows. The standard Vim word motions and `cw`/`ce`
+remain available. Further word/diagnostic remappings need clarification;
+this fork does not import the whole Neovim configuration.
+
+Run `pnpm test` and `pnpm build` to validate changes. The new regression
+tests cover clipboard selection semantics and dropdown navigation.
+
 ## License
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)

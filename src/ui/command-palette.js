@@ -22,6 +22,7 @@
 // the input. Focus is trapped inside the overlay while open.
 
 import { makeIcon } from "./icons.js";
+import { listNavigationKey } from "./list-navigation.js";
 import { getStoredProfileId } from "../editor/keymap-profiles.js";
 import { subscribeKeymapChange } from "../editor/keymap-apply.js";
 
@@ -198,7 +199,7 @@ export function mountCommandPalette({ commands }) {
   input.addEventListener("input", () => filter(input.value));
 
   input.addEventListener("keydown", (e) => {
-    switch (e.key) {
+    switch (listNavigationKey(e)) {
       case "ArrowDown":
         e.preventDefault();
         selectedIndex = Math.min(

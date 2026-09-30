@@ -68,6 +68,9 @@ import { handleCaptureClick } from "./capture.js";
 import { mountCommandPalette } from "./ui/command-palette.js";
 import { mountTabStrip } from "./ui/tab-strip.js";
 import { buildPaletteCommands } from "./command-palette-actions.js";
+import { installSelectNavigation } from "./ui/list-navigation.js";
+
+installSelectNavigation();
 
 const { getAudioContext, webaudioOutput, initAudio, setLogger, soundMap, getSound, superdough, setAudioContext, setSuperdoughAudioController, resetGlobalEffects } = strudelWebaudio; // prettier-ignore
 

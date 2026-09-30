@@ -8,6 +8,7 @@ import { createVscodeKeymap } from "./editor/keymap.js";
 import { numericScrubber } from "./editor/numeric-scrubber.js";
 import { hoverDocs } from "./editor/hover-docs.js";
 import { signatureHint } from "./editor/signature-hint.js";
+import { installNeovimKeymap } from "./editor/neovim-keymap.js";
 
 // CodeMirror compartment for the strasbeat-side editing overlay
 // (createVscodeKeymap). Wrapped so we can swap it in/out when the user
@@ -123,6 +124,7 @@ export function dispatchEditorExtensions(
   editor,
   { onOpenReference, onAuditionSelected, onRevealSound, onFocusBrowser },
 ) {
+  installNeovimKeymap();
   const profile = getProfile(getStoredProfileId());
   const onEvaluate = () => editor.evaluate();
 

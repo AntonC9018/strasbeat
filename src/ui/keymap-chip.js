@@ -25,6 +25,7 @@ import {
 import { applyKeymapProfile, subscribeKeymapChange } from "../editor/keymap-apply.js";
 import { formatChipLabel } from "./keymap-chip-format.js";
 import { makeIcon } from "./icons.js";
+import { listNavigationKey } from "./list-navigation.js";
 
 export { formatChipLabel };
 
@@ -332,15 +333,16 @@ function renderPopover({ anchor, activeId, onPick, onDismiss }) {
   activeRow.focus();
 
   function onKey(e) {
+    const key = listNavigationKey(e);
     if (e.key === "Escape") {
       e.preventDefault();
       onDismiss();
       return;
     }
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (key === "ArrowDown" || key === "ArrowUp") {
       e.preventDefault();
       const idx = rows.indexOf(document.activeElement);
-      const delta = e.key === "ArrowDown" ? 1 : -1;
+      const delta = key === "ArrowDown" ? 1 : -1;
       const next = (idx + delta + rows.length) % rows.length;
       rows[next].focus();
       return;

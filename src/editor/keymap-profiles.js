@@ -24,7 +24,7 @@ export const KEYMAP_PROFILES = [
   {
     id: "vim",
     label: "Vim",
-    description: "Modal · :w eval, :q stop, gc comment",
+    description: "Modal · :w eval, :q stop · Space+C/Y/P system clipboard",
     strudelKeybindings: "vim",
     applyStrasbeatOverlay: false,
     isModal: true,

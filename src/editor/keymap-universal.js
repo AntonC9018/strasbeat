@@ -38,6 +38,20 @@ export function createUniversalKeymap({ onEvaluate, onAuditionSelected, onReveal
       },
     },
     {
+      key: "Ctrl-j",
+      run: (view) => {
+        if (completionStatus(view.state) !== "active") return false;
+        return moveCompletionSelection(true)(view);
+      },
+    },
+    {
+      key: "Ctrl-k",
+      run: (view) => {
+        if (completionStatus(view.state) !== "active") return false;
+        return moveCompletionSelection(false)(view);
+      },
+    },
+    {
       key: "Tab",
       run: (view) => {
         if (completionStatus(view.state) !== "active") return false;
