@@ -19,8 +19,8 @@ numeric literals, a Canvas2D piano roll, a hardware MIDI bridge with
 capture-to-file, an offline WAV exporter, and a small library of
 runtime helpers (`progression()`, …) layered on top of Strudel's pattern
 language. Patterns are plain `.js` files in [`patterns/`](./patterns) —
-edit them in your IDE *or* live in the browser; both stay in sync via
-Vite HMR. Save → commit → diff → branch.
+edit them in your IDE *or* live in the browser; the library refreshes through
+Vite without reloading the page or interrupting playback. Save → commit → diff → branch.
 
 ## What strasbeat adds on top of Strudel
 
@@ -270,7 +270,12 @@ Anton’s `lua/core/mappings.lua`:
 | `ge` / `gE` | Jump to the active pattern’s evaluation error |
 | Alt+1–9 | Select the corresponding open pattern tab in strip order |
 | Alt+A | Pin/unpin the current tab; pinned tabs stay left and must be unpinned before closing |
-| Shift+W | Save the current pattern using the existing Save action (writes to disk in the dev server) |
+| Alt+I | Open reference docs for the function under the cursor |
+| Space A | Select the entire buffer (linewise visual selection) |
+| Shift+W | Stop and restart the current music from the beginning (Vim normal mode) |
+| Ctrl+S | Save under the current filename without a dialog; toolbar Save opens Save As |
+| `"*y{motion}` / `"*p` / `"+y{motion}` / `"+p` | Yank/paste through the system clipboard, including counts and line/block selections |
+| Ctrl+R then `*` / `+` | Insert the system clipboard in insert mode |
 | Space Y | Copy the current line to the system clipboard, or the selection in visual mode |
 | Space C | Copy the whole current line as characters; in visual mode, copy selected lines with common indentation removed |
 | Space P | Paste system clipboard after the cursor, or below the line for linewise text |
@@ -292,7 +297,17 @@ reloads; click the pin icon or use Alt+A to unpin. These Rider shortcuts
 were checked against the Windows `Rider2026.2/keymaps/VSCode _Migrated_.xml`.
 
 Run `pnpm test` and `pnpm build` to validate changes. The new regression
-tests cover clipboard selection semantics and dropdown navigation.
+tests cover clipboard selection semantics, dropdown navigation and saving without a reload.
+
+Disk saves go to `patterns/<name>.js` in this clone:
+`/home/anton/temp/music-dev/strasbeat/patterns/` (Windows:
+`\\wsl.localhost\Ubuntu\home\anton\temp\music-dev\strasbeat\patterns`).
+The saved file exports the Strudel code as a string. Automatic working-copy
+saves live separately in browser localStorage and are specific to the browser
+and origin. Ctrl+S writes the actual file when running the dev server.
+Disk changes update the library baseline while preserving open editor buffers,
+cursor, undo history and playback. Close and reopen a tab, or use Revert,
+to load external edits.
 
 ## License
 

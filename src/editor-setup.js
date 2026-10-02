@@ -122,9 +122,15 @@ export function applyInitialSettings(editor, storedSettings) {
 // the user changes profiles, without remounting the editor.
 export function dispatchEditorExtensions(
   editor,
-  { onOpenReference, onAuditionSelected, onRevealSound, onFocusBrowser },
+  {
+    onOpenReference,
+    onAuditionSelected,
+    onRevealSound,
+    onFocusBrowser,
+    onSave,
+  },
 ) {
-  installNeovimKeymap();
+  installNeovimKeymap({ getEditor: () => editor.editor });
   const profile = getProfile(getStoredProfileId());
   const onEvaluate = () => editor.evaluate();
 
@@ -132,7 +138,16 @@ export function dispatchEditorExtensions(
     effects: StateEffect.appendConfig.of([
       errorMarksExtension,
       Prec.highest(formatExtension),
-      Prec.highest(createUniversalKeymap({ onEvaluate, onAuditionSelected, onRevealSound, onFocusBrowser })),
+      Prec.highest(
+        createUniversalKeymap({
+          onEvaluate,
+          onAuditionSelected,
+          onRevealSound,
+          onFocusBrowser,
+          onOpenReference,
+          onSave,
+        }),
+      ),
       strasbeatOverlayCompartment.of(
         profile.applyStrasbeatOverlay
           ? Prec.highest(createVscodeKeymap({ onEvaluate }))
@@ -153,9 +168,7 @@ export function dispatchEditorExtensions(
 export function reconfigureOverlay(editor, applyOverlay, onEvaluate) {
   editor.editor.dispatch({
     effects: strasbeatOverlayCompartment.reconfigure(
-      applyOverlay
-        ? Prec.highest(createVscodeKeymap({ onEvaluate }))
-        : [],
+      applyOverlay ? Prec.highest(createVscodeKeymap({ onEvaluate })) : [],
     ),
   });
 }

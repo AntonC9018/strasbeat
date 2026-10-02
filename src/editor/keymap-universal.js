@@ -23,9 +23,33 @@ import { soundMap } from "@strudel/webaudio";
 import { tokenAtOffset } from "./mini-notation-tokens.js";
 import { findBankInScope } from "./completions/bank-detect.js";
 
-export function createUniversalKeymap({ onEvaluate, onAuditionSelected, onRevealSound, onFocusBrowser }) {
+export function createUniversalKeymap({
+  onEvaluate,
+  onAuditionSelected,
+  onRevealSound,
+  onFocusBrowser,
+  onOpenReference,
+  onSave,
+}) {
   return keymap.of([
     { key: "Ctrl-Space", run: startCompletion },
+    {
+      key: "Mod-s",
+      preventDefault: true,
+      run: () => {
+        onSave?.();
+        return true;
+      },
+    },
+    {
+      key: "Alt-i",
+      preventDefault: true,
+      run: (view) => {
+        const name = readWordUnderCursor(view.state);
+        if (name) onOpenReference?.(name);
+        return true;
+      },
+    },
     // Mod-Enter on macOS evaluates (parity with Strudel's Ctrl-Enter at
     // Prec.highest, which on mac is literally Control+Enter, not
     // Cmd+Enter). Without this, mac users on the Strudel/Vim/Emacs/Helix
@@ -137,7 +161,8 @@ function resolveSoundUnderCursor(state) {
   for (let cur = node; cur; cur = cur.parent) {
     if (cur.name === "String" || cur.name === "TemplateString") {
       const raw = state.sliceDoc(cur.from, cur.to);
-      if (!(raw.startsWith('"') || raw.startsWith("'") || raw.startsWith("`"))) continue;
+      if (!(raw.startsWith('"') || raw.startsWith("'") || raw.startsWith("`")))
+        continue;
       const contentFrom = cur.from + 1;
       const contentTo = cur.to - 1;
       if (pos < contentFrom || pos > contentTo) continue;

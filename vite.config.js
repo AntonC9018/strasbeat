@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import fs from "node:fs";
+import { patternSavePlugin } from "./scripts/pattern-save-plugin.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,77 +26,6 @@ const strudelCorePkg = JSON.parse(
     "utf8",
   ),
 );
-
-// Vite middleware: write the editor's current code to patterns/<name>.js
-// so the dev workflow is: iterate in the browser → save → commit.
-function patternSavePlugin() {
-  return {
-    name: "strasbeat:pattern-save",
-    configureServer(server) {
-      server.middlewares.use("/api/save", async (req, res, next) => {
-        if (req.method !== "POST") return next();
-        // Cap request body at 1MB to prevent accidental memory exhaustion.
-        const MAX_BODY = 1024 * 1024;
-        let body = "";
-        for await (const chunk of req) {
-          body += chunk;
-          if (body.length > MAX_BODY) {
-            res.statusCode = 413;
-            return res.end(
-              JSON.stringify({ ok: false, error: "payload too large" }),
-            );
-          }
-        }
-        let payload;
-        try {
-          payload = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          return res.end(JSON.stringify({ ok: false, error: "invalid json" }));
-        }
-        const { name, code } = payload;
-        if (typeof name !== "string" || !/^[a-z0-9_-]+$/i.test(name)) {
-          res.statusCode = 400;
-          return res.end(
-            JSON.stringify({
-              ok: false,
-              error: "name must match /^[a-z0-9_-]+$/i",
-            }),
-          );
-        }
-        if (typeof code !== "string") {
-          res.statusCode = 400;
-          return res.end(
-            JSON.stringify({ ok: false, error: "code must be a string" }),
-          );
-        }
-        const escaped = code
-          .replace(/\\/g, "\\\\")
-          .replace(/`/g, "\\`")
-          .replace(/\$\{/g, "\\${");
-        const file = `export default \`${escaped}\`;\n`;
-        const target = path.join(PATTERNS_DIR, `${name}.js`);
-        try {
-          fs.mkdirSync(PATTERNS_DIR, { recursive: true });
-          fs.writeFileSync(target, file, "utf8");
-        } catch (err) {
-          console.error("[strasbeat/api/save] write failed:", err);
-          res.statusCode = 500;
-          return res.end(
-            JSON.stringify({
-              ok: false,
-              error: `write failed: ${err.message}`,
-            }),
-          );
-        }
-        res.setHeader("content-type", "application/json");
-        res.end(
-          JSON.stringify({ ok: true, path: path.relative(__dirname, target) }),
-        );
-      });
-    },
-  };
-}
 
 // Inject the self-hosted Umami <script> into index.html ONLY when both env
 // vars are set. When either is blank (default in .env.production, always
@@ -132,7 +62,7 @@ function umamiPlugin() {
 }
 
 export default defineConfig({
-  plugins: [patternSavePlugin(), umamiPlugin()],
+  plugins: [patternSavePlugin(PATTERNS_DIR, __dirname), umamiPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(appPkg.version),
     __STRUDEL_VERSION__: JSON.stringify(strudelCorePkg.version),

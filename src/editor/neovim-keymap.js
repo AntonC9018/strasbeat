@@ -61,7 +61,7 @@ function clipboardFailure(cm, error) {
   cm.openNotification(message, { bottom: true, duration: 5000 });
 }
 
-export function installNeovimKeymap() {
+export function installNeovimKeymap({ getEditor } = {}) {
   if (installed) return;
   installed = true;
 
@@ -73,7 +73,15 @@ export function installNeovimKeymap() {
   Vim.defineAction("strasbeatSave", () => {
     document.dispatchEvent(new CustomEvent("strasbeat-save"));
   });
-  Vim.mapCommand("W", "action", "strasbeatSave", {}, { context: "normal" });
+  for (const context of ["normal", "insert", "visual"]) {
+    Vim.mapCommand("<C-s>", "action", "strasbeatSave", {}, { context });
+  }
+  Vim.defineAction("strasbeatRestart", () => {
+    document.dispatchEvent(new CustomEvent("strasbeat-restart"));
+  });
+  Vim.mapCommand("W", "action", "strasbeatRestart", {}, { context: "normal" });
+  Vim.map("<Space>a", "ggVG", "normal");
+  Vim.map("<Space>a", "<Esc>ggVG", "visual");
 
   // CM-Vim consumes Ctrl+Space as a word motion before CM keymaps run in
   // normal mode, so override it in Vim as well as the universal keymap.
@@ -102,30 +110,109 @@ export function installNeovimKeymap() {
   }
 
   Vim.defineOperator("strasbeatSubstitute", (cm, args, ranges) => {
-    const register = Vim.getRegisterController().getRegister(args.registerName);
-    const text = register.toString();
-    if (!text) return ranges[0].anchor;
-    cm.replaceSelections(
-      ranges.map((range) =>
-        replacementText(
-          text,
-          args.linewise,
-          cm.getRange(range.anchor, range.head),
+    const replace = (text) => {
+      if (!text) return ranges[0].anchor;
+      cm.replaceSelections(
+        ranges.map((range) =>
+          replacementText(
+            text,
+            args.linewise,
+            cm.getRange(range.anchor, range.head),
+          ),
         ),
-      ),
+      );
+      // No yank/delete operation: the source survives successive gr's.
+      const end = cm.getCursor("head");
+      return { line: end.line, ch: Math.max(0, end.ch - 1) };
+    };
+    if (args.registerName === "*" || args.registerName === "+") {
+      const doc = cm.cm6.state.doc;
+      // Let Vim finish the operator and leave visual mode before awaiting the
+      // browser clipboard. Restore the operator's ranges only if still safe.
+      queueMicrotask(() => {
+        if (cm.cm6.state.doc !== doc) return;
+        readClipboard(cm, (text) => {
+          if (!text) return;
+          cm.operation(() => {
+            cm.setSelections(ranges);
+            cm.setCursor(replace(text));
+          });
+        }).catch((error) => clipboardFailure(cm, error));
+      });
+      return ranges[0].anchor;
+    }
+    return replace(
+      Vim.getRegisterController().getRegister(args.registerName).toString(),
     );
-    // No yank/delete operation: the source register survives successive gr's.
-    const end = cm.getCursor("head");
-    return { line: end.line, ch: Math.max(0, end.ch - 1) };
   });
   // Leave context unrestricted: Vim repeats the final r in grr while an
   // operator is pending, which a normal-only mapping would fail to match.
   Vim.mapCommand("gr", "operator", "strasbeatSubstitute", {}, { isEdit: true });
 
-  // Use the same clipboard register through an alias, so Vim's paste action
-  // consumes the text we have already read and normalized instead of reading
-  // navigator.clipboard a second time. Stock + bindings still work.
-  Vim.defineRegister("~", Vim.getRegisterController().getRegister("+"));
+  // Browsers expose one system clipboard, so * and + share it. Keep the
+  // native register controller for named, numbered, append and black-hole
+  // registers; only bridge explicit clipboard operations to the browser.
+  const registers = Vim.getRegisterController();
+  const clipboard = registers.getRegister("+");
+  Vim.defineRegister("*", clipboard);
+  Vim.defineRegister("~", clipboard);
+  const pushText = registers.pushText;
+  const writeClipboard = (text, cm = getEditor?.()?.cm) => {
+    const fail = (error) =>
+      cm
+        ? clipboardFailure(cm, error)
+        : console.warn("[strasbeat/clipboard]", error);
+    try {
+      navigator.clipboard.writeText(text).catch(fail);
+    } catch (error) {
+      fail(error);
+    }
+  };
+  registers.pushText = function (name, ...args) {
+    const system = name === "*" || name === "+";
+    // The alias bypasses native +'s unchecked clipboard write, while preserving
+    // native yank/delete bookkeeping and line/block metadata.
+    pushText.call(this, system ? "~" : name, ...args);
+    if (system) writeClipboard(clipboard.toString());
+  };
+  const readClipboard = async (cm, apply) => {
+    const state = cm.cm6.state;
+    const text = normalizeClipboardText(await navigator.clipboard.readText());
+    // A permission prompt must not paste into a different buffer/selection.
+    if (
+      cm.cm6.state.doc !== state.doc ||
+      !cm.cm6.state.selection.eq(state.selection)
+    )
+      return;
+    const sameText = text === clipboard.toString();
+    clipboard.setText(
+      text,
+      sameText ? clipboard.linewise : text.endsWith("\n"),
+      sameText && clipboard.blockwise,
+    );
+    apply(text, clipboard);
+    cm.cm6.focus();
+  };
+  Vim.defineAction("paste", function (cm, args, vim) {
+    if (args.registerName === "*" || args.registerName === "+") {
+      readClipboard(cm, (text, register) =>
+        this.continuePaste(cm, args, vim, text, register),
+      ).catch((error) => clipboardFailure(cm, error));
+    } else {
+      const register = registers.getRegister(args.registerName);
+      this.continuePaste(cm, args, vim, register.toString(), register);
+    }
+  });
+  Vim.defineAction("insertRegister", (cm, args) => {
+    if (args.selectedCharacter === "*" || args.selectedCharacter === "+") {
+      readClipboard(cm, (text) => {
+        if (text) cm.replaceSelection(text);
+      }).catch((error) => clipboardFailure(cm, error));
+    } else {
+      const text = registers.getRegister(args.selectedCharacter).toString();
+      if (text) cm.replaceSelection(text);
+    }
+  });
 
   Vim.defineAction("strasbeatClipboardCopy", (cm, args, vim) => {
     const copied = clipboardSelection(cm.cm6.state, vim, args);
@@ -135,42 +222,20 @@ export function installNeovimKeymap() {
     Vim.getRegisterController()
       .getRegister()
       .setText(copied.text, copied.linewise, copied.blockwise);
-    try {
-      navigator.clipboard
-        .writeText(copied.text)
-        .catch((error) => clipboardFailure(cm, error));
-    } catch (error) {
-      clipboardFailure(cm, error);
-    }
+    writeClipboard(copied.text, cm);
     if (vim.visualMode) Vim.exitVisualMode(cm);
   });
 
   Vim.defineAction("strasbeatClipboardPaste", (cm, args, vim) => {
-    const state = cm.cm6.state;
     const visual = vim.visualMode;
-    const paste = async () => {
-      const text = normalizeClipboardText(await navigator.clipboard.readText());
-      // Clipboard permission prompts can take a while. Don't paste into a
-      // different tab or at a cursor that has moved while the prompt was open.
-      if (
-        cm.cm6.state.doc !== state.doc ||
-        !cm.cm6.state.selection.eq(state.selection)
-      )
-        return;
-      const register = Vim.getRegisterController().getRegister("+");
-      const linewise =
-        text === register.toString() ? register.linewise : text.endsWith("\n");
-      const blockwise = text === register.toString() && register.blockwise;
-      register.setText(text, linewise, blockwise);
+    readClipboard(cm, (text) => {
       for (const key of `"~${args.repeat > 1 ? args.repeat : ""}${args.before ? "P" : "p"}`)
         Vim.handleKey(cm, key);
       if (visual && text) {
         Vim.handleKey(cm, "g");
         Vim.handleKey(cm, "v");
       }
-      cm.cm6.focus();
-    };
-    paste().catch((error) => clipboardFailure(cm, error));
+    }).catch((error) => clipboardFailure(cm, error));
   });
 
   for (const context of ["normal", "visual"]) {

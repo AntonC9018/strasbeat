@@ -193,7 +193,7 @@ export function mount({
 }) {
   if (!container) throw new Error("left-rail.mount: container is required");
 
-  const shippedNames = Object.keys(patterns).sort();
+  let shippedNames = Object.keys(patterns).sort();
   let groupedUserPatterns_ = groupedUserPatterns;
   let folders_ = [...folders];
   const collapsedSet = new Set(collapsedFolders);
@@ -513,6 +513,7 @@ export function mount({
 
   // ─── render ───────────────────────────────────────────────────────────
   function renderList() {
+    shippedNames = Object.keys(patterns).sort();
     listEl.replaceChildren();
 
     // Any active spring-load timer is bound to the previous DOM. Drop it

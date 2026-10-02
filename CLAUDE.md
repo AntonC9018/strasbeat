@@ -368,14 +368,14 @@ authoritative value.
 ```
 pick pattern from dropdown → edit live → press play to hear it →
 ⤓ save (writes patterns/<name>.js) → tweak in your IDE if you want →
-HMR reloads the page → re-evaluate
+library refreshes without reloading → re-evaluate
 ```
 
 The MIDI capture flow:
 
 ```
 plug in keyboard → pick a preset → ● capture → play a phrase →
-● capture again → save as patterns/<name>.js → HMR reloads → tweak / commit
+● capture again → save as patterns/<name>.js → library refreshes → tweak / commit
 ```
 
 ## Git status

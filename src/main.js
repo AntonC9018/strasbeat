@@ -275,6 +275,7 @@ applyInitialSettings(editor, INITIAL_STORED_CM_SETTINGS);
 let referencePanel = null;
 
 dispatchEditorExtensions(editor, {
+  onSave: () => saveCurrentPattern(),
   onOpenReference: (name) => {
     if (!referencePanel) return;
     rightRail.activate("reference");
@@ -1260,6 +1261,24 @@ document.addEventListener(
   true,
 );
 
+// Save is an app command even while focus is in a panel/search box. Consume
+// the browser's Save Page shortcut and leave open dialogs in control.
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey && !event.shiftKey &&
+      event.key.toLowerCase() === "s"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!document.querySelector('[role="dialog"]')) saveCurrentPattern();
+    }
+  },
+  true,
+);
+
 // Strudel's vim/emacs/helix integrations dispatch these custom DOM events
 // instead of running CM commands directly — the host wires them to
 // whatever the app considers "evaluate" / "stop" / "toggle comment".
@@ -1267,7 +1286,16 @@ document.addEventListener(
 // blocks). Harmless when the active profile is Strudel/VSCode (no event
 // ever fires); load-bearing in modal profiles.
 document.addEventListener("repl-evaluate", () => editor.evaluate());
-document.addEventListener("strasbeat-save", () => saveBtn.click());
+document.addEventListener("strasbeat-save", () => saveCurrentPattern());
+document.addEventListener("strasbeat-restart", async () => {
+  if (isExportRunning()) {
+    transport.setStatus("Export in progress");
+    return;
+  }
+  await editor.stop();
+  await editor.evaluate();
+  transport.kick();
+});
 document.addEventListener("repl-stop", () => editor.stop());
 document.addEventListener("repl-toggle-comment", () => {
   editor.editor.focus();
@@ -1415,45 +1443,81 @@ playBtn.addEventListener("click", async () => {
 });
 
 // ─── Save current editor → patterns/<name>.js (dev-only) ────────────────
-if (import.meta.env.DEV) {
-  saveBtn.addEventListener("click", async () => {
-    const suggestion = currentName || "untitled";
-    const name = await prompt({
-      title: "Save pattern as",
-      placeholder: "filename without .js",
-      defaultValue: suggestion,
-      confirmLabel: "Save",
-      validate: (v) =>
-        /^[a-z0-9_-]+$/i.test(v) ? null : "use only letters, numbers, - and _",
-    });
+let saving = false;
+async function saveCurrentPattern({ saveAs = false } = {}) {
+  if (saving) return;
+  if (!import.meta.env.DEV) {
+    flushToStore();
+    transport.setStatus(
+      "saved to browser storage (disk saves require the dev server)",
+    );
+    return;
+  }
+  saving = true;
+  try {
+    const originalName = currentName;
+    let name = originalName;
+    if (saveAs || !name) {
+      name = await prompt({
+        title: "Save pattern as",
+        placeholder: "filename without .js",
+        defaultValue: originalName || "untitled",
+        confirmLabel: "Save",
+        validate: (v) => {
+          if (!/^[a-z0-9_-]+$/i.test(v))
+            return "use only letters, numbers, - and _";
+          if (v !== originalName && (v in patterns || store.get(v)))
+            return "that pattern already exists";
+          return null;
+        },
+      });
+    }
     if (!name) return;
+    // A dialog may stay open while the user changes tabs.
+    if (currentName !== originalName) return;
+    flushToStore();
+    const code = editor.code;
     const res = await fetch("/api/save", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, code: editor.code }),
+      body: JSON.stringify({ name, code }),
     });
-    if (!res.ok) {
-      status.textContent = `save failed: ${await res.text()}`;
-      return;
-    }
+    if (!res.ok) throw new Error(await res.text());
     const { path } = await res.json();
-    setCurrentName(name);
-    // Disk is now canonical — promote to Demo: drop the store record, and
-    // drop the user-pattern tracking too (otherwise the rail keeps a ghost
-    // entry in idx.userPatterns after HMR reloads). The pattern will
-    // re-appear as a Demo via import.meta.glob.
-    store.delete(name);
-    const idx = store.getIndex();
-    if (idx.userPatterns?.includes(name)) {
-      idx.userPatterns = idx.userPatterns.filter((n) => n !== name);
-      store.setIndex(idx);
+    patterns[name] = code;
+    if (!patternNames.includes(name)) patternNames.push(name);
+    patternNames.sort();
+    // Update the baseline without replacing the EditorState or losing undo.
+    // Edits made during the request remain working copies of the saved file.
+    const newerEdits = store.get(originalName);
+    const stillActive = currentName === originalName;
+    if (name !== originalName) {
+      if (newerEdits) store.set(name, { ...newerEdits, isUserPattern: false });
+      tabs.reKey(originalName, name);
+      if (stillActive) setCurrentName(name);
     }
-    leftRail.removeUserPattern(name);
-    leftRail.updateDirtySet(computeDirtySet(patternNames, patterns, store));
-    tabStrip?.render();
+    if (stillActive) flushToStore();
+    const workingCopy = store.get(name);
+    if (workingCopy?.code === code) store.delete(name);
+    else if (workingCopy) store.set(name, { ...workingCopy, isUserPattern: false });
+    const idx = store.getIndex();
+    idx.userPatterns = (idx.userPatterns ?? []).filter((n) => n !== name);
+    if (name !== originalName && !(originalName in patterns)) {
+      store.delete(originalName);
+      idx.userPatterns = idx.userPatterns.filter((n) => n !== originalName);
+    }
+    store.setIndex(idx);
+    lastDirtyState.delete(name);
+    refreshRail();
     status.textContent = `saved → ${path}`;
-    // Vite HMR will pick up the new file and re-fire the glob below.
-  });
+  } catch (err) {
+    status.textContent = `save failed: ${err.message}`;
+  } finally {
+    saving = false;
+  }
+}
+if (import.meta.env.DEV) {
+  saveBtn.addEventListener("click", () => saveCurrentPattern({ saveAs: true }));
 }
 
 // Share flow is async (gzip + base64 + clipboard write). Guard against
@@ -1491,16 +1555,33 @@ exportBtn.addEventListener("click", () => {
   exportPanel.autoExport();
 });
 
-// ─── HMR: refresh pattern list when files change on disk ─────────────────
+// ─── Refresh disk patterns without disturbing live editor/playback state ──
 if (import.meta.hot) {
-  import.meta.hot.accept(
-    Object.keys(patternModules).map((p) => p.replace("..", "/patterns")),
-    () => {
-      // a known pattern file changed — reload the page module to refresh state
-      location.reload();
-    },
-  );
-  // also pick up *new* files (vite re-evaluates the importing module)
+  const latestPatternUpdate = new Map();
+  import.meta.hot.on("strasbeat:pattern-changed", async ({ type, name, timestamp }) => {
+    latestPatternUpdate.set(name, timestamp);
+    try {
+      if (type === "delete") {
+        delete patterns[name];
+        const i = patternNames.indexOf(name);
+        if (i >= 0) patternNames.splice(i, 1);
+      } else {
+        const module = await import(
+          /* @vite-ignore */ `/patterns/${encodeURIComponent(name)}.js?t=${timestamp}`
+        );
+        if (latestPatternUpdate.get(name) !== timestamp) return;
+        patterns[name] = module.default;
+        if (!patternNames.includes(name)) patternNames.push(name);
+        patternNames.sort();
+      }
+      // Active buffers and cached tabs keep their edits; only the disk baseline
+      // and library change. Flush first so dirty indicators compare live text.
+      flushToStore();
+      refreshRail();
+    } catch (err) {
+      transport.setStatus(`couldn't refresh ${name}: ${err.message}`);
+    }
+  });
   import.meta.hot.accept(() => location.reload());
 }
 
