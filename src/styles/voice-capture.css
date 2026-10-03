@@ -1,0 +1,42 @@
+.voice-capture {
+  width: min(640px, calc(100vw - var(--space-6)));
+  max-width: min(640px, calc(100vw - var(--space-6)));
+  min-width: 0;
+}
+
+.voice-capture__status {
+  color: var(--text-mut);
+  font-size: var(--text-sm);
+}
+
+.voice-capture__grid {
+  display: flex;
+  gap: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  accent-color: var(--accent);
+}
+
+.voice-capture__code {
+  max-height: 280px;
+  overflow: auto;
+  background: var(--surface-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--code-sm);
+  line-height: var(--lh-sm);
+}
+
+.voice-capture [hidden] {
+  display: none;
+}
+.voice-capture audio {
+  width: 100%;
+}
+.voice-capture .is-recording {
+  color: var(--rec);
+  border-color: var(--rec);
+}
