@@ -44,5 +44,6 @@
 @import "./styles/scrubber.css";
 @import "./styles/modal.css";
 @import "./styles/midi-import.css";
+@import "./styles/voice-capture.css";
 @import "./styles/command-palette.css";
 @import "./styles/settings.css";

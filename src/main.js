@@ -48,8 +48,11 @@ import {
   handleNewPatternClick,
   handleDuplicateClick,
   handleBulkDuplicateClick,
+  saveNewPattern,
+  patternNameExists,
 } from "./patterns.js";
 import { showMidiImportDialog, getMidiFile } from "./ui/midi-import-dialog.js";
+import { showVoiceCaptureDialog } from "./ui/voice-capture-dialog.js";
 import {
   readStoredCmSettingsFromLocalStorage,
   applyInitialSettings,
@@ -1081,6 +1084,28 @@ function openMidiImportDialog(file) {
     openPattern: (name) => tabs.openOrFocus(name),
   });
 }
+
+document.getElementById("voice-capture").addEventListener("click", () => {
+  showVoiceCaptureDialog({
+    baseUrl: (import.meta.env.VITE_VOICE_API_URL || "").replace(/\/$/, ""),
+    bpm: (editor.repl?.scheduler?.cps || 0.5) * 60 * 4,
+    onStart: () => editor.stop(),
+    onInsert: async (code) => {
+      flushToStore();
+      const stem = `voice-${new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14)}`;
+      let name = stem;
+      let suffix = 2;
+      while (patternNameExists(name, patterns, store)) {
+        name = `${stem}-${suffix++}`;
+      }
+      const result = await saveNewPattern({
+        name, code, store, leftRail, editor, transport, setCurrentName,
+        openPattern: (n) => tabs.openOrFocus(n),
+      });
+      return result.ok;
+    },
+  });
+});
 
 // ─── MIDI file drag-and-drop on the editor surface ───────────────────────
 editorRoot.addEventListener("dragover", (e) => {

@@ -1,0 +1,9 @@
+# Python 3.10: Basic Pitch's Linux wheel uses TFLite by default. We explicitly
+# load its bundled ONNX model for predictable CPU inference across platforms.
+basic-pitch[onnx]==0.4.0
+numpy>=1.24,<2
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+soundfile>=0.12,<1
+# resampy 0.4.2 imports pkg_resources (removed in setuptools 81).
+setuptools>=70,<81

@@ -166,6 +166,12 @@ export default defineConfig({
     // strudel.cc serves sample manifests without CORS headers, so we can't
     // fetch them directly from a localhost origin — proxy them instead.
     proxy: {
+      "/api/voice": {
+        target: process.env.VOICE_BACKEND_URL || "http://127.0.0.1:8000",
+        changeOrigin: true,
+        timeout: 120000,
+        proxyTimeout: 120000,
+      },
       "/strudel-cc": {
         target: "https://strudel.cc",
         changeOrigin: true,

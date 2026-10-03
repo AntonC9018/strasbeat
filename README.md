@@ -157,6 +157,18 @@ a filename; the played notes are written to `patterns/<name>.js` as a
 real Strudel pattern, the page reloads, and you can tweak it in the
 editor before committing.
 
+### Sing or hum a pattern
+
+Click **Voice** in the transport bar, allow microphone access, and sing or
+hum a short melody. Click **Stop & transcribe** to send the recording to the
+Basic Pitch backend. Review the code, adjust tempo/quantization, and click
+**Open as pattern** to create an editable pattern in a new tab. Clips stop
+automatically after 30 seconds; Cancel discards the recording.
+
+Start the separate Python model service before using Voice. See
+[backend setup](./backend/README.md) for local commands and hosted frontend
+configuration. The existing static deployment needs a configured voice service.
+
 ### Pattern file format
 
 ```js
